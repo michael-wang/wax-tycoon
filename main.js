@@ -164,7 +164,7 @@ function scores_sorter(a, b) {
 function best_upgrade(scores) {
 	scores.sort(scores_sorter);
 
-	for (i = 0; i < scores.lengtg; i++) {
+	for (i = 0; i < scores.length; i++) {
 		if (scores[i].eta <= 0) {
 			return scores[i];
 		}
@@ -176,7 +176,7 @@ function future_best_upgrade(scores) {
 	scores.sort(scores_sorter);
 
 	if (scores[0].eta > 0) {
-		return scores[i];
+		return scores[0];
 	}
 	return null;
 }

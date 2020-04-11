@@ -129,29 +129,62 @@ function upgrade_scores(balance, income, companies) {
 		const prod_per_sec = cmp.prod / cmp.duration;
 
 		const up1 = cmp.up_duration;
-		if (up1.cost <= balance) {
-			var prod_delta = (cmp.prod / up1.new_duration - prod_per_sec);
-			scores.push({
-				cmp: cmp.name,
-				upgrade: 'duration',
-				cost: up1.cost,
-				score: prod_delta
-			});
-		}
+		var prod_delta = (cmp.prod / up1.new_duration - prod_per_sec);
+		var shortage = (up1.cost > balance) ? (up1.cost - balance) : 0;
+		scores.push({
+			cmp: cmp.name,
+			upgrade: 'Duration (Left side)',
+			cost: up1.cost,
+			eta: (shortage > 0) ? (shortage / income) : 0,
+			score: prod_delta
+		});
 
 		const up2 = cmp.upgrade_prod;
-		if (up2.cost <= balance) {
-			prod_delta = up2.new_prod / cmp.duration - prod_per_sec;
-			scores.push({
-				cmp: cmp.name,
-				upgrade: 'production',
-				cost: up2.cost,
-				score: prod_delta
-			});
-		}
+		prod_delta = up2.new_prod / cmp.duration - prod_per_sec;
+		var shortage = (up2.cost > balance) ? (up2.cost - balance) : 0;
+		scores.push({
+			cmp: cmp.name,
+			upgrade: 'Production (Right side)',
+			cost: up2.cost,
+			eta: (shortage > 0) ? (shortage / income) : 0,
+			score: prod_delta
+		});
 	});
 	if (DEBUG) { console.log(scores); }
 	return scores;
+}
+
+function scores_sorter(a, b) {
+	if (b.score == a.score) {
+		return (a.cost - b.cost);
+	}
+	return (b.score - a.score);
+}
+
+function best_upgrade(scores) {
+	scores.sort(scores_sorter);
+
+	for (i = 0; i < scores.lengtg; i++) {
+		if (scores[i].eta <= 0) {
+			return scores[i];
+		}
+	}
+	return null;
+}
+
+function future_best_upgrade(scores) {
+	scores.sort(scores_sorter);
+
+	if (scores[0].eta > 0) {
+		return scores[i];
+	}
+	return null;
+}
+
+function print_eta(sec) {
+	const now = new Date();
+	const finish = new Date(now.getTime() + sec * 1000);
+	console.log("%s (%d) seconds.", finish, sec);
 }
 
 function main() {
@@ -170,18 +203,21 @@ function main() {
 		return;
 	}
 
-	var scores = upgrade_scores(balance, income, companies);
+	const scores = upgrade_scores(balance, income, companies);
+	const best = best_upgrade(scores);
 
-	scores.sort(function(a, b) {
-		if (b.score == a.score) {
-			return (a.cost - b.cost);
-		}
-		return (b.score - a.score);
-	});
+	if (best) {
+		console.log('Best upgrade:', best.cmp, best.upgrade);
+	} else {
+		console.log('No upgrade available');
+	}
 
-	const best = scores[0];
-	console.log('Best upgrade:');
-	console.log(best.cmp, 'upgrade:', best.upgrade);
+	const next = future_best_upgrade(scores);
+	if (next) {
+		console.log('Wait...');
+		print_eta(next.eta);
+		console.log('For next best upgrade:', next.cmp, next.upgrade);
+	}
 }
 
 main();

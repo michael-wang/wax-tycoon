@@ -8,7 +8,7 @@
 //  jQuery.noConflict();
 // Press enter, then we can use $$ in code.
 
-var DEBUG = true;
+var DEBUG = false;
 
 function parse_money(str) {
 	if (DEBUG) { console.log('parse_money str:', str); }
@@ -122,69 +122,53 @@ function parse_companies() {
 	return companies;
 }
 
-// score: delta(prod_per_sec)
-function upgrade_scores(balance, income, companies) {
-	var scores = [];
+function evaluate_upgrades(balance, income, companies) {
+	var upgrades = [];
 	companies.forEach(function(cmp, idx) {
 		const prod_per_sec = cmp.prod / cmp.duration;
 
 		const up1 = cmp.up_duration;
 		var prod_delta = (cmp.prod / up1.new_duration - prod_per_sec);
 		var shortage = (up1.cost > balance) ? (up1.cost - balance) : 0;
-		scores.push({
+		upgrades.push({
 			cmp: cmp.name,
-			upgrade: 'Duration (Left side)',
+			name: 'Duration (Left side)',
 			cost: up1.cost,
-			eta: (shortage > 0) ? (shortage / income) : 0,
-			score: prod_delta
+			prod_delta: prod_delta,
+			eta: (shortage > 0) ? (shortage / income) : 0
 		});
 
 		const up2 = cmp.upgrade_prod;
 		prod_delta = up2.new_prod / cmp.duration - prod_per_sec;
 		var shortage = (up2.cost > balance) ? (up2.cost - balance) : 0;
-		scores.push({
+		upgrades.push({
 			cmp: cmp.name,
-			upgrade: 'Production (Right side)',
+			name: 'Production (Right side)',
 			cost: up2.cost,
-			eta: (shortage > 0) ? (shortage / income) : 0,
-			score: prod_delta
+			prod_delta: prod_delta,
+			eta: (shortage > 0) ? (shortage / income) : 0
 		});
 	});
-	if (DEBUG) { console.log(scores); }
-	return scores;
+	if (DEBUG) { console.log(upgrades); }
+	return upgrades;
 }
 
-function scores_sorter(a, b) {
-	if (b.score == a.score) {
+function upgrades_sorter(a, b) {
+	if (b.prod_delta == a.prod_delta) {
 		return (a.cost - b.cost);
 	}
-	return (b.score - a.score);
+	return (b.prod_delta - a.prod_delta);
 }
 
-function best_upgrade(scores) {
-	scores.sort(scores_sorter);
-
-	for (i = 0; i < scores.length; i++) {
-		if (scores[i].eta <= 0) {
-			return scores[i];
-		}
-	}
-	return null;
+function print_upgrade(prefix, up) {
+	console.log("%s [prod_delta: %d] %s => %s %s", prefix, up.prod_delta, up.cmp, up.name, format_eta(up.eta));
 }
 
-function future_best_upgrade(scores) {
-	scores.sort(scores_sorter);
-
-	if (scores[0].eta > 0) {
-		return scores[0];
-	}
-	return null;
-}
-
-function print_eta(sec) {
+function format_eta(eta) {
+	if (eta == 0) { return ''; }
 	const now = new Date();
-	const finish = new Date(now.getTime() + sec * 1000);
-	console.log("%s (%d) seconds.", finish, sec);
+	const done = new Date(now.getTime() + eta * 1000);
+	return (' [Ready @ ' + done.getHours() + ':' + done.getMinutes() + ' (' + Math.ceil(eta) + ' sec)]');
 }
 
 function main() {
@@ -203,20 +187,21 @@ function main() {
 		return;
 	}
 
-	const scores = upgrade_scores(balance, income, companies);
-	const best = best_upgrade(scores);
-
-	if (best) {
-		console.log('Best upgrade:', best.cmp, best.upgrade);
-	} else {
-		console.log('No upgrade available');
+	const upgrades = evaluate_upgrades(balance, income, companies);
+	if (upgrades.length == 0) {
+		console.warn('No upgrade available.');
+		return;
 	}
 
-	const next = future_best_upgrade(scores);
-	if (next) {
-		console.log('Wait...');
-		print_eta(next.eta);
-		console.log('For next best upgrade:', next.cmp, next.upgrade);
+	upgrades.sort(upgrades_sorter);
+	const best = upgrades[0];
+	if (best) {
+		print_upgrade('Best upgrade: ', best);
+	}
+
+	if (upgrades.length > 1) {
+		const second = upgrades[1];
+		print_upgrade('2nd  upgrade: ', second);
 	}
 }
 

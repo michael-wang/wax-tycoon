@@ -9,41 +9,49 @@
 // Press enter, then we can use $$ in code.
 
 var DEBUG = false;
+var BIG_NUMBER = {
+	M: 10**6,
+	B: 10**9,
+	T: 10**12,
+	Q: 10**15
+};
 
-function parse_money(str) {
-	if (DEBUG) { console.log('parse_money str:', str); }
+// Unpack 1.5M to 1500000
+function unpack_money(str) {
+	if (DEBUG) { console.log('unpack_money str:', str); }
 	const value_str = str.replace(/,| |M|B|T|Q/g, '');
-	if (DEBUG) { console.log('parse_money value_str:', value_str); }
+	if (DEBUG) { console.log('unpack_money value_str:', value_str); }
 	const value_in_unit = parseFloat(value_str);
-	if (DEBUG) { console.log('parse_money value_in_unit:', value_in_unit); }
+	if (DEBUG) { console.log('unpack_money value_in_unit:', value_in_unit); }
 	if (isNaN(value_in_unit)) {
-		console.error("parse_money failed to get:", str);
+		console.error("unpack_money failed to get:", str);
 		return NaN;
 	}
 
-	const last_char = str.slice(-1);
-	if (DEBUG) { console.log('parse_money last_char:', last_char); }
-	const multiplier = unit_multiplier(last_char);
-	if (DEBUG) { console.log('parse_money multiplier:', multiplier); }
-
-	const value = value_in_unit * multiplier;
-	if (DEBUG) { console.log('parse_money:', value.toFixed(2)); }
+	const unit_char = str.slice(-1);
+	if (DEBUG) { console.log('unpack_money last_char:', last_char); }
+	const value = value_in_unit * unpack_unit(unit_char);
+	if (DEBUG) { console.log('unpack_money:', value.toFixed(2)); }
 	return value;
 }
 
-function unit_multiplier(unit) {
-	switch (unit) {
-		case 'M':
-			return 10**6;
-		case 'B':
-			return 10**9;
-		case 'T':
-			return 10**12;
-		case 'Q':
-			return 10**15;
-		default:
-			return 1;
+// unit_char: if is number, return 1.
+function unpack_unit(unit_char) {
+	const value = BIG_NUMBER[unit_char];
+	return value ? value : 1;
+}
+
+function pack_money(value) {
+	if (value >= BIG_NUMBER.Q) {
+		return ((value / BIG_NUMBER.Q).toFixed(2).toString() + ' Q');
+	} else if (value >= BIG_NUMBER.T) {
+		return ((value / BIG_NUMBER.T).toFixed(2).toString() + ' T');
+	} else if (value >= BIG_NUMBER.B) {
+		return ((value / BIG_NUMBER.B).toFixed(2).toString() + ' B');
+	} else if (value >= BIG_NUMBER.M) {
+		return ((value / BIG_NUMBER.M).toFixed(2).toString() + ' M');
 	}
+	return value.toFixed(2).toString();
 }
 
 // str: '1.23 sec'
@@ -95,21 +103,21 @@ function parse_companies() {
 		var company = {};
 		company['name'] = c.querySelector('.information > .name').innerText;
 		var info = c.querySelector('.information > .info');
-		const prod = parse_money(info.querySelector('.info > .primary > .animated-number').innerText);
+		const prod = unpack_money(info.querySelector('.info > .primary > .animated-number').innerText);
 		company['prod'] = prod;
 		const duration = parse_time(info.querySelector('small').innerText.replace(/^\/ /g, ''));
 		company['duration'] = duration;
 
 		const upgrade1 = c.querySelector('.actions > .action');
 		company['up_duration'] = {
-			cost: parse_money(upgrade1.querySelector('.animated-number').innerText),
+			cost: unpack_money(upgrade1.querySelector('.animated-number').innerText),
 			new_duration: duration + parse_time(upgrade1.querySelector('button[tooltip="Upgrade Speed"]').innerText)
 		};
 
 		const upgrade2 = upgrade1.nextElementSibling;
 		company['upgrade_prod'] = {
-			cost: parse_money(upgrade2.querySelector('.animated-number').innerText),
-			new_prod: prod + (parse_money(upgrade2.querySelector('button[tooltip="Upgrade Production"]').innerText))
+			cost: unpack_money(upgrade2.querySelector('.animated-number').innerText),
+			new_prod: prod + (unpack_money(upgrade2.querySelector('button[tooltip="Upgrade Production"]').innerText))
 		};
 
 		if (DEBUG) { console.log('company:', company); }
@@ -153,6 +161,7 @@ function evaluate_upgrades(balance, income, companies) {
 	return upgrades;
 }
 
+// descendent with prod_delta.
 function upgrades_sorter(a, b) {
 	if (b.prod_delta == a.prod_delta) {
 		return (a.cost - b.cost);
@@ -161,23 +170,56 @@ function upgrades_sorter(a, b) {
 }
 
 function print_upgrade(prefix, up) {
-	console.log("%s [prod_delta: %d] %s => %s %s", prefix, up.prod_delta, up.cmp, up.name, format_eta(up.eta));
+	const prod_delta = pack_money(up.prod_delta);
+	const cost = pack_money(up.cost);
+	const eta = format_eta(up.eta);
+	console.log("%s [prod_delta: %s, cost: %s] %s => %s %s", prefix, prod_delta, cost, up.cmp, up.name, up.eta);
 }
 
 function format_eta(eta) {
 	if (eta == 0) { return ''; }
 	const now = new Date();
 	const done = new Date(now.getTime() + eta * 1000);
-	return (' [Ready @ ' + done.getHours() + ':' + done.getMinutes() + ' (' + Math.ceil(eta) + ' sec)]');
+	//return (' [Ready @ ' + done.getMonth() + '/' + done.getDate() + '-' + done.getHours() + ':' + done.getMinutes() + ' (' + Math.ceil(eta) + ' sec)]');
+	return (' [Ready @ ' + done.toString() + ']');
+}
+
+function print_top_upgrades(ups, max) {
+	console.log('Top upgrades:');
+	for (var i = 0; i < max; i++) {
+		if (ups[i]) {
+			print_upgrade('[#' + i + ']', ups[i]);
+		}
+	}
+}
+
+function locked_companies(income) {
+	var locked = [];
+	$$('.box-list > .company').forEach(function(cmp, i) {
+		if (cmp.querySelector('.disabled')) {
+			const cost = unpack_money(cmp.querySelector('.disabled > .action-big > .animated-number').innerText);
+			locked.push({
+				name: cmp.querySelector('.information > .name').innerText,
+				cost: cost,
+				eta: format_eta(cost / income)
+			});
+		}
+	});
+	return locked;
+}
+
+// ascendent by cost.
+function locked_sorter(a, b) {
+	return (a.cost - b.cost);
 }
 
 function main() {
-	const income = parse_money($$('#income .animated-number')[0].innerText);
+	const income = unpack_money($$('#income .animated-number')[0].innerText);
 	if (isNaN(income)) {
 		return;
 	}
 
-	const balance = parse_money($$('.balance .animated-number')[0].innerText);
+	const balance = unpack_money($$('.balance .animated-number')[0].innerText);
 	if (isNaN(balance)) {
 		return;
 	}
@@ -194,14 +236,12 @@ function main() {
 	}
 
 	upgrades.sort(upgrades_sorter);
-	const best = upgrades[0];
-	if (best) {
-		print_upgrade('Best upgrade: ', best);
-	}
+	print_top_upgrades(upgrades, 4);
 
-	if (upgrades.length > 1) {
-		const second = upgrades[1];
-		print_upgrade('2nd  upgrade: ', second);
+	const locked = locked_companies(income);
+	if (locked && locked.length > 0) {
+		locked.sort(locked_sorter);
+		console.log('Next company to unlock:', locked[0]);
 	}
 }
 

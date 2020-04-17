@@ -173,7 +173,7 @@ function print_upgrade(prefix, up) {
 	const prod_delta = pack_money(up.prod_delta);
 	const cost = pack_money(up.cost);
 	const eta = format_eta(up.eta);
-	console.log("%s [prod_delta: %s, cost: %s] %s => %s %s", prefix, prod_delta, cost, up.cmp, up.name, up.eta);
+	console.log("%s [prod_delta: %s, cost: %s] %s => %s %s", prefix, prod_delta, cost, up.cmp, up.name, eta);
 }
 
 function format_eta(eta) {

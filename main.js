@@ -243,6 +243,12 @@ function main() {
 		locked.sort(locked_sorter);
 		console.log('Next company to unlock:', locked[0]);
 	}
+
+	// add variable to global for user inspection
+	_G.companies = companies;
+	_G.upgrades = upgrades;
 }
+
+var _G = {};
 
 main();

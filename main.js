@@ -193,15 +193,16 @@ function print_top_upgrades(ups, max) {
 	}
 }
 
-function locked_companies(income) {
+function locked_companies(balance, income) {
 	var locked = [];
 	$$('.box-list > .company').forEach(function(cmp, i) {
 		if (cmp.querySelector('.disabled')) {
 			const cost = unpack_money(cmp.querySelector('.disabled > .action-big > .animated-number').innerText);
+			eta = (cost > balance) ? ((cost - balance) / income) : 0;
 			locked.push({
 				name: cmp.querySelector('.information > .name').innerText,
 				cost: cost,
-				eta: format_eta(cost / income)
+				eta: format_eta(eta)
 			});
 		}
 	});
@@ -238,7 +239,7 @@ function main() {
 	upgrades.sort(upgrades_sorter);
 	print_top_upgrades(upgrades, 4);
 
-	const locked = locked_companies(income);
+	const locked = locked_companies(balance, income);
 	if (locked && locked.length > 0) {
 		locked.sort(locked_sorter);
 		console.log('Next company to unlock:', locked[0]);

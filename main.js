@@ -108,17 +108,27 @@ function parse_companies() {
 		const duration = parse_time(info.querySelector('small').innerText.replace(/^\/ /g, ''));
 		company['duration'] = duration;
 
-		const upgrade1 = c.querySelector('.actions > .action');
-		company['up_duration'] = {
-			cost: unpack_money(upgrade1.querySelector('.animated-number').innerText),
-			new_duration: duration + parse_time(upgrade1.querySelector('button[tooltip="Upgrade Speed"]').innerText)
-		};
+		var action = c.querySelector('.actions > .action');
+		if (action) {
+			const upgrade_speed = action.querySelector('button[tooltip="Upgrade Speed"]');
+			if (upgrade_speed) {
+				company['upgrade_speed'] = {
+					cost: unpack_money(action.querySelector('.animated-number').innerText),
+					new_duration: duration + parse_time(upgrade_speed.innerText)
+				};
+			}
 
-		const upgrade2 = upgrade1.nextElementSibling;
-		company['upgrade_prod'] = {
-			cost: unpack_money(upgrade2.querySelector('.animated-number').innerText),
-			new_prod: prod + (unpack_money(upgrade2.querySelector('button[tooltip="Upgrade Production"]').innerText))
-		};
+			action = action.nextElementSibling;
+			if (action) {
+				const upgrade_prod = action.querySelector('button[tooltip="Upgrade Production"]');
+				if (upgrade_prod) {
+					company['upgrade_prod'] = {
+						cost: unpack_money(action.querySelector('.animated-number').innerText),
+						new_prod: prod + (unpack_money(upgrade_prod.innerText))
+					}
+				}
+			}
+		}
 
 		if (DEBUG) { console.log('company:', company); }
 		companies.push(company);
@@ -135,27 +145,31 @@ function evaluate_upgrades(balance, income, companies) {
 	companies.forEach(function(cmp, idx) {
 		const prod_per_sec = cmp.prod / cmp.duration;
 
-		const up1 = cmp.up_duration;
-		var prod_delta = (cmp.prod / up1.new_duration - prod_per_sec);
-		var shortage = (up1.cost > balance) ? (up1.cost - balance) : 0;
-		upgrades.push({
-			cmp: cmp.name,
-			name: 'Duration (Left side)',
-			cost: up1.cost,
-			prod_delta: prod_delta,
-			eta: (shortage > 0) ? (shortage / income) : 0
-		});
+		const up1 = cmp.upgrade_speed;
+		if (up1) {
+			var prod_delta = (cmp.prod / up1.new_duration - prod_per_sec);
+			var shortage = (up1.cost > balance) ? (up1.cost - balance) : 0;
+			upgrades.push({
+				cmp: cmp.name,
+				name: 'Duration (Left side)',
+				cost: up1.cost,
+				prod_delta: prod_delta,
+				eta: (shortage > 0) ? (shortage / income) : 0
+			});
+		}
 
 		const up2 = cmp.upgrade_prod;
-		prod_delta = up2.new_prod / cmp.duration - prod_per_sec;
-		var shortage = (up2.cost > balance) ? (up2.cost - balance) : 0;
-		upgrades.push({
-			cmp: cmp.name,
-			name: 'Production (Right side)',
-			cost: up2.cost,
-			prod_delta: prod_delta,
-			eta: (shortage > 0) ? (shortage / income) : 0
-		});
+		if (up2) {
+			prod_delta = up2.new_prod / cmp.duration - prod_per_sec;
+			var shortage = (up2.cost > balance) ? (up2.cost - balance) : 0;
+			upgrades.push({
+				cmp: cmp.name,
+				name: 'Production (Right side)',
+				cost: up2.cost,
+				prod_delta: prod_delta,
+				eta: (shortage > 0) ? (shortage / income) : 0
+			});
+		}
 	});
 	if (DEBUG) { console.log(upgrades); }
 	return upgrades;
@@ -246,6 +260,8 @@ function main() {
 	}
 
 	// add variable to global for user inspection
+	_G.balance = balance;
+	_G.income = income;
 	_G.companies = companies;
 	_G.upgrades = upgrades;
 }
